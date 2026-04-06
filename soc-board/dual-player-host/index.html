@@ -3,12 +3,12 @@
   GitHub Pages: put this file in your Pages root or /docs (e.g. docs/index.html).
   Published URL must match config.playerPageUrl in dual-player-macro.js
 
-  Opens with: ?playlist=<uuid>   (required)
-  Optional:   &debug=1           (browser console logs)
+  Preferred (no browser CORS to Vidcast API): macro opens with
+    ?playlist=<uuid>#p=<base64url(JSON {"l":"mp4","r":"mp4"})>
+  The page decodes #p and sets <video src> only.
 
-  The page fetches https://api.vidcast.io/... from the browser. If playback never starts,
-  open dev tools: a CORS block means Vidcast does not allow your Pages origin — use another
-  host, a small CORS proxy you control, or ask Vidcast to allow your origin.
+  Fallback: ?playlist=<uuid> only — page fetch()es api.vidcast.io (often blocked by CORS
+  from third-party origins). Optional &debug=1 for console logs.
 -->
 <html lang="en">
 <head>
@@ -53,12 +53,49 @@
     log("error:", msg);
   }
 
-  if (!playlistId) {
-    showErr("Missing ?playlist= — add the Vidcast playlist UUID to the URL.");
+  function fromBase64Url(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    return atob(s);
+  }
+
+  function tryHashPayload() {
+    var h = window.location.hash || "";
+    if (h.indexOf("#p=") !== 0) return false;
+    var enc = h.slice(3);
+    if (!enc) return false;
+    try {
+      var json = fromBase64Url(enc);
+      var o = JSON.parse(json);
+      var u0 = o.l;
+      var u1 = o.r;
+      if (!u0 || !u1) {
+        showErr("Invalid #p payload: need l and r MP4 URLs.");
+        return true;
+      }
+      var a = document.getElementById("v0");
+      var b = document.getElementById("v1");
+      a.src = u0;
+      b.src = u1;
+      document.title = "Dual Vidcast";
+      log("hash payload: assigned src lengths", u0.length, u1.length);
+      return true;
+    } catch (e) {
+      showErr("Bad #p= payload: " + (e && e.message ? e.message : String(e)));
+      return true;
+    }
+  }
+
+  if (tryHashPayload()) {
     return;
   }
 
-  log("playlistId", playlistId);
+  if (!playlistId) {
+    showErr("Missing ?playlist= or #p= — open from the RoomOS macro.");
+    return;
+  }
+
+  log("playlistId (fetch fallback)", playlistId);
 
   var api =
     "https://api.vidcast.io/v1/playlists/" +
