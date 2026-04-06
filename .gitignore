@@ -1,4 +1,5 @@
 .DS_STORE
+tests/
 soc-board/iptv-macro.js
 soc-board/goal.md
 soc-board/dual-display-vidcast-macro.js
