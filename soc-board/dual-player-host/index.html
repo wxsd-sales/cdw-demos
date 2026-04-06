@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<!--
+  GitHub Pages: put this file in your Pages root or /docs (e.g. docs/index.html).
+  Published URL must match config.playerPageUrl in dual-player-macro.js
+
+  Opens with: ?playlist=<uuid>   (required)
+  Optional:   &debug=1           (browser console logs)
+
+  The page fetches https://api.vidcast.io/... from the browser. If playback never starts,
+  open dev tools: a CORS block means Vidcast does not allow your Pages origin — use another
+  host, a small CORS proxy you control, or ask Vidcast to allow your origin.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dual Vidcast player</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #000; color: #ccc; font-family: system-ui, sans-serif; }
+    body { display: flex; flex-direction: row; min-height: 100vh; }
+    #err {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+      padding: 10px 12px; background: #522; color: #fff; font-size: 14px;
+      display: none;
+    }
+    #err.show { display: block; }
+    video {
+      flex: 1; min-width: 0; height: 100vh; object-fit: contain;
+      background: #111; box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div id="err"></div>
+  <video id="v0" controls playsinline autoplay muted></video>
+  <video id="v1" controls playsinline autoplay muted></video>
+  <script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var playlistId = params.get("playlist");
+  var debug = params.get("debug") === "1";
+
+  function log() {
+    if (debug && console && console.log) {
+      console.log.apply(console, ["[dual-player]"].concat([].slice.call(arguments)));
+    }
+  }
+
+  function showErr(msg) {
+    var el = document.getElementById("err");
+    el.textContent = msg;
+    el.className = "show";
+    log("error:", msg);
+  }
+
+  if (!playlistId) {
+    showErr("Missing ?playlist= — add the Vidcast playlist UUID to the URL.");
+    return;
+  }
+
+  log("playlistId", playlistId);
+
+  var api =
+    "https://api.vidcast.io/v1/playlists/" +
+    encodeURIComponent(playlistId) +
+    "/videos?page=0&pageSize=50&skipUnavailable=false";
+
+  fetch(api, { method: "GET", credentials: "omit" })
+    .then(function (r) {
+      log("response", r.status);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      var raw = data.content || [];
+      var items = [];
+      for (var i = 0; i < raw.length; i++) {
+        var it = raw[i];
+        if (!it.share_id) continue;
+        items.push({
+          name: it.name || "Untitled",
+          mp4: it.camera_asset_url,
+        });
+      }
+      items.sort(function (a, b) {
+        return (a.name || "").localeCompare(b.name || "");
+      });
+      log("videos", items.length);
+      if (items.length < 2) {
+        showErr("Playlist needs at least 2 videos (after sort). Found " + items.length + ".");
+        return;
+      }
+      var u0 = items[0].mp4;
+      var u1 = items[1].mp4;
+      if (!u0 || !u1) {
+        showErr("Missing camera_asset_url on first two items.");
+        return;
+      }
+      var a = document.getElementById("v0");
+      var b = document.getElementById("v1");
+      a.src = u0;
+      b.src = u1;
+      document.title = items[0].name + " | " + items[1].name;
+      log("assigned src lengths", u0.length, u1.length);
+    })
+    .catch(function (e) {
+      showErr(
+        "Could not load playlist (network or CORS). " +
+          (e && e.message ? e.message : String(e)) +
+          " — see HTML comment in index.html."
+      );
+    });
+})();
+  </script>
+</body>
+</html>
