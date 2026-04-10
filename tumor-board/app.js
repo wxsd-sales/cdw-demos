@@ -9,11 +9,150 @@
  * The publish element (#v-publish) uses crossOrigin="anonymous" before load so
  * captureStream() is allowed; the Vidcast CDN must send Access-Control-Allow-Origin
  * (e.g. * or your Pages host) on the MP4 response or capture will still fail.
+ *
+ * Logging: open the page with ?log=2 (before the # hash) for verbose logs, or
+ * ?debug=1 for log level 2 + Webex SDK internal debug. Default logs important
+ * milestones at console.info with prefix [tumor-board].
  */
 (function () {
   "use strict";
 
   var webex;
+
+  /** 0=off, 1=important (default), 2=verbose. Override: ?log=2 on the page URL (before #). */
+  function logLevel() {
+    var m = /(?:^|[?&])log=(\d)(?:&|$)/.exec(location.search);
+    if (m) return parseInt(m[1], 10) || 1;
+    if (/[\?&]debug=1(?:&|$)/.test(location.search)) return 2;
+    return 1;
+  }
+
+  function log() {
+    if (logLevel() < 1) return;
+    var a = ["[tumor-board]"].concat(Array.prototype.slice.call(arguments));
+    console.info.apply(console, a);
+  }
+
+  function logVerbose() {
+    if (logLevel() < 2) return;
+    var a = ["[tumor-board][v]"].concat(Array.prototype.slice.call(arguments));
+    console.info.apply(console, a);
+  }
+
+  function logSafeToken(prefix, token) {
+    if (!token) {
+      log(prefix, "token: (empty)");
+      return;
+    }
+    log(prefix, "token: present, len=" + String(token).length);
+  }
+
+  function logVideoEl(tag, el) {
+    if (!el) {
+      logVerbose(tag, "no element");
+      return;
+    }
+    logVerbose(tag, {
+      readyState: el.readyState,
+      paused: el.paused,
+      muted: el.muted,
+      videoWidth: el.videoWidth,
+      videoHeight: el.videoHeight,
+      currentTime: el.currentTime,
+      crossOrigin: el.crossOrigin,
+      error: el.error ? el.error.code + " " + el.error.message : null,
+    });
+  }
+
+  function logMediaStream(tag, ms) {
+    if (!ms) {
+      logVerbose(tag, "no stream");
+      return;
+    }
+    var vt = ms.getVideoTracks();
+    var at = ms.getAudioTracks();
+    logVerbose(tag, {
+      videoTracks: vt.map(function (t) {
+        return {
+          id: t.id,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState,
+          label: t.label,
+        };
+      }),
+      audioTracks: at.map(function (t) {
+        return {
+          id: t.id,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState,
+        };
+      }),
+    });
+  }
+
+  function logMeetingSurface(tag, meeting) {
+    if (!meeting) {
+      log(tag, "meeting: (null)");
+      return;
+    }
+    try {
+      var pick = {};
+      [
+        "id",
+        "state",
+        "meetingState",
+        "inLobby",
+        "isJoined",
+        "joined",
+        "partnerMeetingId",
+        "sipUri",
+        "meetingInfo",
+      ].forEach(function (k) {
+        try {
+          if (meeting[k] === undefined) return;
+          if (k === "meetingInfo" && meeting[k] && typeof meeting[k] === "object") {
+            pick.meetingInfoKeys = Object.keys(meeting[k]).slice(0, 20).join(",");
+            return;
+          }
+          pick[k] = meeting[k];
+        } catch (_) {}
+      });
+      log(tag, "meeting snapshot:", JSON.stringify(pick));
+    } catch (e) {
+      log(tag, "meeting snapshot failed:", e.message || String(e));
+    }
+  }
+
+  function attachMeetingDebugEvents(meeting) {
+    if (!meeting || typeof meeting.on !== "function") {
+      log("meeting.on not available — skipping event taps");
+      return;
+    }
+    var names = [
+      "error",
+      "media:ready",
+      "media:stopped",
+      "meeting:self:guestAdmitted",
+      "meeting:guestAdmitted",
+      "meeting:stateChange",
+      "lobby:guestAdmitted",
+    ];
+    names.forEach(function (ev) {
+      try {
+        meeting.on(ev, function (payload) {
+          if (ev === "error") {
+            log("meeting event: error", payload && payload.message ? payload.message : payload);
+          } else {
+            logVerbose("meeting event:", ev, payload);
+          }
+        });
+      } catch (_) {
+        /* unknown event name on this SDK build */
+      }
+    });
+  }
 
   function fromBase64Url(s) {
     s = String(s).replace(/-/g, "+").replace(/_/g, "/");
@@ -122,9 +261,49 @@
     await Promise.all([waitCanPlay(v1), waitCanPlay(v2)]);
     await v1.play().catch(function () {});
     await v2.play().catch(function () {});
+    logVideoEl("v-screen after play", v1);
+    logVideoEl("v-publish after play", v2);
+  }
+
+  async function ensureMediaPublished(meeting, localStreams, reason, opts) {
+    opts = opts || {};
+    var tryAddMedia = opts.tryAddMedia === true;
+    log("ensureMediaPublished:", reason, "tryAddMedia=", tryAddMedia);
+    logMeetingSurface("before " + reason, meeting);
+    if (tryAddMedia && typeof meeting.addMedia === "function") {
+      try {
+        await meeting.addMedia({
+          localStreams: localStreams,
+          allowMediaInLobby: true,
+        });
+        log("addMedia OK:", reason);
+      } catch (e) {
+        log("addMedia failed:", reason, e && e.message ? e.message : String(e));
+      }
+    }
+    if (typeof meeting.publishStreams === "function" && localStreams.camera) {
+      try {
+        await meeting.publishStreams({ camera: localStreams.camera });
+        log("publishStreams(camera) OK:", reason);
+      } catch (e) {
+        log("publishStreams failed:", reason, e && e.message ? e.message : String(e));
+      }
+    }
+    if (typeof meeting.unmuteVideo === "function") {
+      try {
+        await meeting.unmuteVideo();
+        log("unmuteVideo OK:", reason);
+      } catch (e) {
+        log("unmuteVideo:", reason, e && e.message ? e.message : String(e));
+      }
+    }
+    logMeetingSurface("after " + reason, meeting);
   }
 
   async function joinAndPublish(token, sip) {
+    log("joinAndPublish start; sip len=", String(sip).length);
+    logSafeToken("joinAndPublish", token);
+
     if (!token || !sip) {
       setBanner("No token or SIP — videos only. Add token + sip to #p payload.", "err");
       return;
@@ -135,35 +314,45 @@
     }
 
     setBanner("Signing in to Webex…", "");
+    var wxLog = logLevel() >= 2 ? "debug" : "error";
     webex = Webex.init({
       credentials: { access_token: token },
       config: {
-        logger: { level: "error" },
+        logger: { level: wxLog },
       },
     });
+    log("Webex.init logger level:", wxLog);
 
+    log("waiting for webex ready…");
     await new Promise(function (resolve, reject) {
       webex.once("ready", resolve);
       setTimeout(function () {
         reject(new Error("Webex ready timeout"));
       }, 15000);
     });
+    log("webex ready; canAuthorize=", webex.canAuthorize);
 
     if (!webex.canAuthorize) {
       setBanner("Token not accepted by Webex SDK (canAuthorize false).", "err");
       return;
     }
 
+    log("meetings.register…");
     await webex.meetings.register();
+    log("meetings.register OK");
 
     if (typeof webex.meetings.syncMeetings === "function") {
-      await webex.meetings.syncMeetings().catch(function () {});
+      log("syncMeetings…");
+      await webex.meetings.syncMeetings().catch(function (e) {
+        log("syncMeetings warn:", e && e.message ? e.message : String(e));
+      });
     }
 
     setBanner("Creating / joining meeting…", "");
     var meeting;
     try {
       var m = webex.meetings;
+      log("meetings.create destination type=", typeof sip);
       if (typeof m.create === "function") {
         meeting = await m.create(sip);
       } else if (typeof m.createMeeting === "function") {
@@ -172,18 +361,23 @@
         setBanner("SDK has no meetings.create / createMeeting.", "err");
         return;
       }
+      log("meetings.create OK, meeting id=", meeting && meeting.id);
+      logMeetingSurface("after create", meeting);
     } catch (e) {
       console.error(e);
+      log("meetings.create error:", e && e.message ? e.message : String(e));
       setBanner("meetings.create failed: " + (e.message || String(e)), "err");
       return;
     }
 
     var v2 = document.getElementById("v-publish");
+    logVideoEl("v-publish before capture", v2);
     var rawStream;
     try {
       rawStream = captureStreamForVideo(v2);
     } catch (err) {
       console.error(err);
+      log("captureStream error:", err && err.message ? err.message : String(err));
       setBanner(
         "Cannot capture second video (CORS). MP4 host must allow this page with Access-Control-Allow-Origin, and #v-publish needs crossOrigin (already set). " +
           (err && err.message ? err.message : String(err)),
@@ -195,9 +389,13 @@
       setBanner("captureStream not supported on this browser.", "err");
       return;
     }
+    logMediaStream("captureStream raw", rawStream);
+
     var split = splitVideoAudioTracks(rawStream);
     var camStream = split.video;
     var micStream = split.audio;
+    logMediaStream("split.video (camera)", camStream);
+    logMediaStream("split.audio (mic)", micStream);
 
     var sdkCameraStream = new webex.meetings.mediaHelpers.LocalCameraStream(camStream);
     var localStreams = { camera: sdkCameraStream };
@@ -205,28 +403,58 @@
       localStreams.microphone = new webex.meetings.mediaHelpers.LocalMicrophoneStream(
         micStream
       );
+      log("localStreams: camera + microphone");
+    } else {
+      log("localStreams: camera only (no audio tracks on capture)");
     }
 
-    var meetingOptions = {
+    attachMeetingDebugEvents(meeting);
+
+    if (typeof meeting.on === "function") {
+      try {
+        meeting.on("meeting:self:guestAdmitted", function () {
+          log("event meeting:self:guestAdmitted — addMedia after lobby");
+          setBanner("Admitted from lobby — publishing video…", "ok");
+          void ensureMediaPublished(meeting, localStreams, "guestAdmitted", {
+            tryAddMedia: true,
+          });
+        });
+      } catch (e) {
+        log("could not bind meeting:self:guestAdmitted", e.message || String(e));
+      }
+      try {
+        meeting.on("meeting:guestAdmitted", function () {
+          log("event meeting:guestAdmitted — addMedia after lobby");
+          void ensureMediaPublished(meeting, localStreams, "guestAdmittedAlt", {
+            tryAddMedia: true,
+          });
+        });
+      } catch (_) {}
+    }
+
+    /* SDK expects { joinOptions, mediaOptions } — not only mediaOptions at top level. */
+    var joinWithMediaPayload = {
+      joinOptions: {},
       mediaOptions: {
         allowMediaInLobby: true,
-        shareAudioEnabled: false,
-        shareVideoEnabled: true,
         localStreams: localStreams,
       },
     };
+    logVerbose("joinWithMedia payload keys:", Object.keys(joinWithMediaPayload));
+    log("joinWithMedia…");
 
     setBanner("Joining with media…", "");
     try {
       if (typeof meeting.joinWithMedia === "function") {
-        await meeting.joinWithMedia(meetingOptions);
+        await meeting.joinWithMedia(joinWithMediaPayload);
+        log("joinWithMedia resolved");
       } else if (typeof meeting.join === "function") {
-        await meeting.join();
+        log("fallback: join + addMedia");
+        await meeting.join({});
         if (typeof meeting.addMedia === "function") {
           await meeting.addMedia({
             localStreams: localStreams,
-            audioEnabled: !!localStreams.microphone,
-            videoEnabled: true,
+            allowMediaInLobby: true,
           });
         }
       } else {
@@ -235,25 +463,39 @@
       }
     } catch (e) {
       console.error(e);
+      log("join/joinWithMedia error:", e && e.message ? e.message : String(e));
       setBanner("Join failed: " + (e.message || String(e)), "err");
       return;
     }
 
-    setBanner("Publishing second video into meeting.", "ok");
+    logMeetingSurface("after join/joinWithMedia", meeting);
+    /* joinWithMedia already attached streams; avoid duplicate addMedia — only nudge publish/mute. */
+    await ensureMediaPublished(meeting, localStreams, "postJoin", {
+      tryAddMedia: false,
+    });
+
+    setBanner(
+      "Joined — if remote video is black, check lobby admit, host policy, or add ?log=2 for details.",
+      "ok"
+    );
+    log("joinAndPublish finished OK");
   }
 
   async function main() {
+    log("main() start; page log level=", logLevel(), "search=", location.search);
     var payload = parsePayload();
     if (!payload) {
       setBanner('Missing #p= payload. Macro should open with hash (see tumor-board-macro.js).', "err");
       return;
     }
+    log("payload keys:", Object.keys(payload).join(","));
     var v1 = payload.v1 || payload.l;
     var v2 = payload.v2 || payload.r;
     if (!v1 || !v2) {
       setBanner("Payload needs v1 and v2 (or l/r) MP4 URLs.", "err");
       return;
     }
+    log("v1 MP4 len=", String(v1).length, "v2 MP4 len=", String(v2).length);
 
     try {
       await startVideos(v1, v2);

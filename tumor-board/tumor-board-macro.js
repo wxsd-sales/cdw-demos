@@ -7,6 +7,9 @@
  * 3) Opens a hosted tumor-board/index.html with #p=<base64url JSON> carrying
  *    v1, v2, token, sip so the WebView can play clip A fullscreen, publish clip B
  *    into the meeting via Webex JS SDK (see tumor-board/app.js).
+ * 4) If closeWebViewWhenCallEnds is true, clears the WebView when every call ends,
+ *    but only if a live call was seen during this WebView session (avoids closing
+ *    when the flow opened with no call).
  *
  * Edit config below. Allowlist api.vidcast.io + CDN for HttpClient; WebView needs
  * your GitHub Pages origin + jsdelivr (Webex SDK) + Vidcast MP4 hosts.
@@ -43,12 +46,17 @@ const config = {
   autoDeleteWebCache: true,
   closeContentWithPanel: false,
   debugVerbose: false,
+  /** When true, clear the tumor-board WebView after all calls end (device left meeting). */
+  closeWebViewWhenCallEnds: true,
 };
 
 let openingWebview = false;
 let lastOpenedUrl = "";
+/** True once we have seen at least one live call while this WebView session is open. */
+let hadCallWhileWebViewOpen = false;
 let videos = [];
 let loading = true;
+let callEndDebounceTimer = null;
 
 function dbg(tag, obj) {
   if (!config.debugVerbose) return;
@@ -187,10 +195,78 @@ function urlMatchesPlayer(url) {
   }
 }
 
+function normalizeCalls(raw) {
+  if (raw == null || raw === "") return [];
+  return Array.isArray(raw) ? raw : [raw];
+}
+
+/** Treat common in-call states as live; empty list or only disconnected = no call. */
+function hasLiveCall(calls) {
+  for (let i = 0; i < calls.length; i++) {
+    const c = calls[i];
+    if (!c || typeof c !== "object") continue;
+    const st = String(c.Status || c.status || "").toLowerCase();
+    if (
+      st === "connected" ||
+      st === "ringing" ||
+      st === "proceeding" ||
+      st === "dialing" ||
+      st === "alerting" ||
+      st === "onhold" ||
+      st === "hold" ||
+      st === "joining"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function refreshHadCallWhileWebViewOpen() {
+  if (!lastOpenedUrl) return;
+  try {
+    const raw = await xapi.Status.Call.get();
+    if (hasLiveCall(normalizeCalls(raw))) hadCallWhileWebViewOpen = true;
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function scheduleCallEndCheck() {
+  if (!config.closeWebViewWhenCallEnds) return;
+  if (callEndDebounceTimer) clearTimeout(callEndDebounceTimer);
+  callEndDebounceTimer = setTimeout(() => {
+    callEndDebounceTimer = null;
+    void maybeCloseWebViewAfterCallsEnded();
+  }, 400);
+}
+
+async function maybeCloseWebViewAfterCallsEnded() {
+  if (!lastOpenedUrl || openingWebview) return;
+  if (!config.closeWebViewWhenCallEnds) return;
+  try {
+    const raw = await xapi.Status.Call.get();
+    const calls = normalizeCalls(raw);
+    const live = hasLiveCall(calls);
+    if (live) {
+      hadCallWhileWebViewOpen = true;
+      return;
+    }
+    if (!hadCallWhileWebViewOpen) return;
+    dbg("all calls ended — closing tumor board WebView");
+    await closeWebView();
+    createPanels();
+  } catch (e) {
+    dbg("maybeCloseWebViewAfterCallsEnded", e.message || String(e));
+  }
+}
+
 async function openTumorBoardWebView(title, url) {
   dbg("WebView URL length", String(url.length));
   openingWebview = true;
   lastOpenedUrl = url;
+  hadCallWhileWebViewOpen = false;
+  await refreshHadCallWhileWebViewOpen();
   xapi.Command.UserInterface.WebView.Display({
     Title: title.slice(0, 200),
     Target: "OSD",
@@ -205,6 +281,7 @@ async function openTumorBoardWebView(title, url) {
 
 async function closeWebView() {
   lastOpenedUrl = "";
+  hadCallWhileWebViewOpen = false;
   xapi.Command.UserInterface.WebView.Clear({ Target: "OSD" })
     .then(() => {
       if (config.autoDeleteWebCache) {
@@ -412,6 +489,15 @@ async function init(webengineMode) {
 
   await createPanels();
   xapi.Event.UserInterface.Extensions.Widget.Action.on(processWidget);
+
+  if (config.closeWebViewWhenCallEnds) {
+    xapi.Status.Call.on(scheduleCallEndCheck);
+    try {
+      xapi.Event.CallDisconnect.on(scheduleCallEndCheck);
+    } catch (_) {
+      /* optional on older CE */
+    }
+  }
 
   dbg("init", {
     playerPageUrl: config.playerPageUrl,
