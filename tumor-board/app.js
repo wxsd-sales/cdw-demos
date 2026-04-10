@@ -5,6 +5,10 @@
  * Payload in URL hash #p=<base64url UTF-8 JSON>:
  *   { "v1": "<mp4>", "v2": "<mp4>", "token": "<webex access token>", "sip": "<sip or meeting destination>" }
  * Any field may be omitted for partial testing (e.g. videos only without join).
+ *
+ * The publish element (#v-publish) uses crossOrigin="anonymous" before load so
+ * captureStream() is allowed; the Vidcast CDN must send Access-Control-Allow-Origin
+ * (e.g. * or your Pages host) on the MP4 response or capture will still fail.
  */
 (function () {
   "use strict";
@@ -65,8 +69,13 @@
 
   function captureStreamForVideo(el) {
     if (!el) return null;
-    if (typeof el.captureStream === "function") return el.captureStream();
-    if (typeof el.mozCaptureStream === "function") return el.mozCaptureStream();
+    try {
+      if (typeof el.captureStream === "function") return el.captureStream();
+      if (typeof el.mozCaptureStream === "function") return el.mozCaptureStream();
+    } catch (err) {
+      console.error("[tumor-board] captureStream", err);
+      throw err;
+    }
     return null;
   }
 
@@ -103,6 +112,8 @@
     var v2 = document.getElementById("v-publish");
     if (!v1 || !v2) throw new Error("missing video elements");
     v1.src = v1src;
+    /* Required for captureStream(): CORS-enabled media. Set before src. */
+    v2.crossOrigin = "anonymous";
     v2.src = v2src;
     v1.muted = true;
     v2.muted = true;
@@ -168,7 +179,18 @@
     }
 
     var v2 = document.getElementById("v-publish");
-    var rawStream = captureStreamForVideo(v2);
+    var rawStream;
+    try {
+      rawStream = captureStreamForVideo(v2);
+    } catch (err) {
+      console.error(err);
+      setBanner(
+        "Cannot capture second video (CORS). MP4 host must allow this page with Access-Control-Allow-Origin, and #v-publish needs crossOrigin (already set). " +
+          (err && err.message ? err.message : String(err)),
+        "err"
+      );
+      return;
+    }
     if (!rawStream) {
       setBanner("captureStream not supported on this browser.", "err");
       return;

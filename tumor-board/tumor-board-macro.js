@@ -1,7 +1,7 @@
 /********************************************************
  * Tumor board — RoomOS macro
  *
- * 1) Optionally starts a Webex instant meeting (xCommand).
+ * 1) Dials into the fixed meeting at config.meetingSip (xapi.Command.Dial).
  * 2) Fetches the same Vidcast playlist as vidcast-macro.js (sorted by name),
  *    takes the first two camera_asset_url values.
  * 3) Opens a hosted tumor-board/index.html with #p=<base64url JSON> carrying
@@ -33,14 +33,13 @@ const config = {
    * (paste short-lived token while testing — prefer a proper secrets flow later).
    */
   webexAccessToken: "",
-  /**
-   * SIP / meeting destination for meetings.create (e.g. room’s instant meeting).
-   * If empty, macro tries to read from Call status after InstantMeeting.Start.
-   */
-  meetingSip: "",
-  startInstantMeeting: true,
-  /** Wait before reading Call status for SIP (ms). */
-  instantMeetingDelayMs: 3500,
+  /** SIP / Webex address the codec dials before opening the WebView (see Dial.Number). */
+  //meetingSip: "rtaylorhansoncdw@honor-health-ebc-sbx.webex.com",
+  meetingSip: "rtaylorhansoncoe@coe-sbx.webex.com",
+  /** If false, skip Dial (e.g. you are already in the meeting). */
+  dialMeetingOnStart: true,
+  /** Wait after Dial before opening the WebView so the call can connect (ms). */
+  dialJoinDelayMs: 5000,
   autoDeleteWebCache: true,
   closeContentWithPanel: false,
   debugVerbose: false,
@@ -150,39 +149,30 @@ function buildPayloadUrl(v1, v2, token, sip) {
   return base + "#p=" + bytesToBase64Url(utf8Bytes(payload));
 }
 
-async function tryInstantMeeting() {
-  if (!config.startInstantMeeting) return;
-  try {
-    await xapi.Command.Webex.Meetings.InstantMeeting.Start({});
-    console.log("[tumorbd] InstantMeeting.Start OK");
-  } catch (e) {
-    console.warn("[tumorbd] InstantMeeting.Start:", e.message || e);
-  }
+function dialNumberFromMeetingSip(sip) {
+  const s = String(sip || "").trim();
+  if (!s) return "";
+  const lower = s.toLowerCase();
+  if (lower.indexOf("sip:") === 0 || lower.indexOf("h323:") === 0) return s;
+  return "sip:" + s;
 }
 
-function normalizeCallEntry(c) {
-  if (!c || typeof c !== "object") return "";
-  return (
-    c.CallbackAddress ||
-    c.RemoteURI ||
-    c.URI ||
-    (c.Detail && (c.Detail.CallbackAddress || c.Detail.RemoteURI)) ||
-    ""
-  );
-}
-
-async function readSipFromActiveCall() {
-  try {
-    const raw = await xapi.Status.Call.get();
-    const list = raw == null ? [] : Array.isArray(raw) ? raw : [raw];
-    for (const c of list) {
-      const uri = normalizeCallEntry(c);
-      if (uri && String(uri).indexOf("@") >= 0) return String(uri);
-    }
-  } catch (e) {
-    dbg("readSipFromActiveCall", e.message || String(e));
+async function dialMeetingIfConfigured() {
+  if (!config.dialMeetingOnStart) return true;
+  const raw = (config.meetingSip || "").trim();
+  if (!raw) {
+    console.warn("[tumorbd] dialMeetingOnStart is true but meetingSip is empty");
+    return false;
   }
-  return "";
+  const number = dialNumberFromMeetingSip(raw);
+  try {
+    await xapi.Command.Dial({ Number: number });
+    console.log("[tumorbd] Dial OK:", number);
+    return true;
+  } catch (e) {
+    console.warn("[tumorbd] Dial:", e.message || e);
+    return false;
+  }
 }
 
 function urlMatchesPlayer(url) {
@@ -236,21 +226,14 @@ async function runStartFlow() {
     return;
   }
 
-  let sip = (config.meetingSip || "").trim();
-
-  if (config.startInstantMeeting) {
-    await tryInstantMeeting();
-    await sleep(config.instantMeetingDelayMs);
+  const sip = (config.meetingSip || "").trim();
+  if (!sip) {
+    console.warn("[tumorbd] meetingSip is empty — set config.meetingSip");
   }
 
-  if (!sip) {
-    sip = await readSipFromActiveCall();
-  }
-  if (!sip) {
-    console.warn(
-      "[tumorbd] No SIP — set config.meetingSip or fix Call status read after instant meeting"
-    );
-  }
+  await dialMeetingIfConfigured();
+  const delay = Math.max(0, Number(config.dialJoinDelayMs) || 0);
+  if (delay > 0) await sleep(delay);
 
   const url = buildPayloadUrl(
     videos[0].mp4,
