@@ -1,0 +1,3 @@
+# Used when: docker build -f meeting-join-server/Dockerfile -t meeting-join .
+meeting-join-server/node_modules
+**/npm-debug.log

@@ -18,16 +18,15 @@ import xapi from "xapi";
 const config = {
   /** Main panel tile on Home / Control Panel */
   button: {
-    name: "Vidcast",
+    name: "SOC Board",
     color: "#6F739E",
     icon: "Tv",
     showInCall: true,
   },
   /** Unique id prefix if multiple macros exist on one device */
   panelId: "vidcast",
-  /* https://app.vidcast.io/playlists/19aea050-4da1-4ed7-a4a1-84d64dd76b43 */
   /** Public playlist UUID from Vidcast */
-  playlistId: "19aea050-4da1-4ed7-a4a1-84d64dd76b43",
+  playlistId: "",
   /** API page size (max items per request) */
   playlistPageSize: 50,
   /**

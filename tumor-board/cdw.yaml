@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  name: cdw
+spec:
+  selector:
+    matchLabels:
+      app: cdw
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: cdw
+    spec:
+      containers:
+      - image: 191518685251.dkr.ecr.us-west-1.amazonaws.com/cdw-meeting-join:latest
+        imagePullPolicy: Always
+        name: cdw
+        ports:
+        - containerPort: 10031
+        # Bind HTTP before Webex OAuth finishes; /ready stays 503 until token exists so the
+        # ALB does not send traffic to a pod that is not yet listening (avoids 504 gateway timeouts).
+        # Fargate: requests define task size. Chromium + Puppeteer need more than default 0.25 vCPU/0.5Gi
+        # or the process starves; kubelet HTTP liveness then times out and restarts (not reproducible on
+        # local Docker with host resources). Readiness-only + ALB is enough; /alive remains for manual checks.
+        resources:
+          requests:
+            cpu: "1"
+            memory: "2Gi"
+          limits:
+            cpu: "1"
+            memory: "2Gi"
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 10031
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: cdw-service
+spec:
+  ports:
+    - port: 80
+      targetPort: 10031
+      protocol: TCP
+  type: NodePort
+  selector:
+    app: cdw
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: default
+  name: cdw-ingress
+  annotations:
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    alb.ingress.kubernetes.io/certificate-arn:     arn:aws:acm:us-west-1:191518685251:certificate/2cfd4f8c-11c6-4179-b29f-2617340980e7
+    alb.ingress.kubernetes.io/actions.ssl-redirect: '{"Type": "redirect", "RedirectConfig": { "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}'
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ssl-redirect
+                port:
+                  name: use-annotation
+          - path: /*
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: cdw-service
+                port:
+                  number: 80

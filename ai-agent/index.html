@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Webex AI Agent Interface</title>
+    <style>
+        /* --- Core Page Styles --- */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+            /* Create a complex, dark-to-light gradient background */
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(13, 110, 253, 0.4) 0%, rgba(13, 110, 253, 0) 40%), /* Blue burst */
+                radial-gradient(circle at 90% 80%, rgba(139, 61, 255, 0.5) 0%, rgba(139, 61, 255, 0) 50%), /* Purple/orange burst */
+                linear-gradient(135deg, #091225 0%, #172a50 100%); /* Base dark background */
+            background-size: cover;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Keep the side elements cropped */
+        }
+
+        /* --- Top Bar & Footer --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            position: absolute;
+            top: 0;
+            width: 100%;
+            box-sizing: border-box;
+            z-index: 10; /* Ensure it stays on top */
+        }
+
+        .status-left, .status-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .arrow-right {
+            border: solid rgba(255, 255, 255, 0.8);
+            border-width: 0 2px 2px 0;
+            display: inline-block;
+            padding: 3px;
+            transform: rotate(-45deg);
+        }
+
+        footer {
+            position: absolute;
+            bottom: 24px;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .footer-logo {
+            height: 40px;
+            width: auto;
+            max-width: min(280px, 85vw);
+            object-fit: contain;
+        }
+
+        /* --- Side Images (Represented by placeholders) --- */
+        .doctor-left,
+        .scrum-right {
+            position: absolute;
+            top: 10%;
+            bottom: 10%;
+            width: 18vw;
+            overflow: hidden;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.5);
+            z-index: 1;
+        }
+
+        .doctor-left {
+            left: 0;
+            border-radius: 0 100px 100px 0;
+        }
+
+        .scrum-right {
+            right: 0;
+            border-radius: 100px 0 0 100px;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .doctor-left img,
+        .scrum-right img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center center;
+            display: block;
+        }
+
+        /* --- Main Content & Buttons --- */
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            z-index: 5; /* Place main content above the curved side placeholders */
+        }
+
+        h1 {
+            font-size: 48px;
+            margin-bottom: 60px;
+            font-weight: 600;
+        }
+
+        .button-grid {
+            display: flex;
+            gap: 30px;
+            margin-top: -30px; /* Counter h1 margin for better vertical centring */
+        }
+
+        .action-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none; /* Remove underline from links */
+            width: 160px; /* Consistent width */
+        }
+
+        .icon-circle {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 36px;
+            color: white;
+            transition: background-color 0.2s, transform 0.2s; /* Add a nice hover effect */
+        }
+
+        .icon-text {
+            margin-top: 15px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 13px;
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2; /* Limit to 2 lines of text */
+            -webkit-box-orient: vertical;  
+            overflow: hidden;
+        }
+
+        /* --- Hover States for Buttons --- */
+        .action-button:hover .icon-circle {
+            background-color: rgba(255, 255, 255, 0.2);
+            transform: scale(1.05); /* Make it subtly grow */
+            cursor: pointer;
+        }
+
+        .icon-surgery,
+        .icon-triage,
+        .icon-appt,
+        .icon-vegas {
+            font-size: 50px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!--<header>
+        <div class="status-left">
+            <span>Quiet_Test +19102075066</span>
+            <span class="arrow-right"></span>
+        </div>
+        <div class="status-right">
+            <span>💻 AirPlay</span>
+            <span>11:37</span>
+        </div>
+    </header>-->
+
+    <div class="doctor-left">
+        <img src="doctor.webp" alt="" width="800" height="1200" decoding="async">
+    </div>
+    <div class="scrum-right">
+        <img src="nurse.png" alt="" width="800" height="1200" decoding="async">
+    </div>
+
+    <main>
+        <h1>Try Webex AI Agent</h1>
+
+        <div class="button-grid">
+            <!-- <a href="#" class="action-button">
+                <div class="icon-circle icon-surgery">🏥</div>
+                <div class="icon-text">Surgery Notifcations</div>
+            </a>
+
+            <a href="#" class="action-button">
+                <div class="icon-circle icon-triage">📋</div>
+                <div class="icon-text">Patient Triage</div>
+            </a> -->
+
+            <a href="#" class="action-button" id="appointment-dial" aria-label="Appointment Management — dial SIP target">
+                <div class="icon-circle icon-appt">📅</div>
+                <div class="icon-text">Appointment Management</div>
+            </a>
+
+            <!-- <a href="#" class="action-button">
+                <div class="icon-circle icon-vegas">♣️</div>
+                <div class="icon-text">Vegas Expert</div>
+            </a> -->
+        </div>
+    </main>
+
+    <footer>
+        <img class="footer-logo" src="cisco.png" alt="Cisco" width="200" height="60" decoding="async">
+    </footer>
+
+    <!--
+      Dial (GitHub Pages–safe relative page; query params only):
+        token=…       Bearer for Webex REST (alias: webexToken=… per video-kiosk-app)
+        deviceId=…    Workspace device id for xapi/command/Dial
+        number=…      SIP URI or number (encode @ as %40 in URLs)
+      Example: index.html?token=…&deviceId=…&number=sip%3Auser%40example.webex.com
+    -->
+    <script>
+(function () {
+  var WEBEX_API_URL = "https://webexapis.com/v1";
+  var urlParams = new URLSearchParams(window.location.search);
+  var webexToken = urlParams.get("webexToken") || urlParams.get("token");
+  var deviceId = urlParams.get("deviceId");
+  var dialNumber = urlParams.get("number");
+
+  async function handleDial() {
+    if (!webexToken || !deviceId || !dialNumber) {
+      console.error(
+        "Missing token (or webexToken), deviceId, or number URL parameters"
+      );
+      return;
+    }
+    try {
+      var res = await fetch(WEBEX_API_URL + "/xapi/command/Dial", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + webexToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          deviceId: deviceId,
+          arguments: {
+            Number: dialNumber,
+            Protocol: "Sip",
+          },
+        }),
+      });
+      if (!res.ok) {
+        var errBody = await res.text();
+        console.error("Dial HTTP " + res.status, errBody);
+        return;
+      }
+      console.log("Dialing " + dialNumber + "…");
+    } catch (err) {
+      console.error("Error dialing:", err);
+    }
+  }
+
+  function init() {
+    var el = document.getElementById("appointment-dial");
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      void handleDial();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+    </script>
+
+</body>
+</html>

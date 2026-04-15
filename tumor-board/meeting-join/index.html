@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dual Vidcast → Webex (camera + share)</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; color: #e8e8e8; font-family: system-ui, sans-serif; }
+    #banner-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.45;
+      background: #1e2430;
+      border-bottom: 1px solid #333;
+      min-height: 1.2em;
+    }
+    #banner-row.err { background: #4a2020; color: #fff; }
+    #banner-row.ok { background: #1a3d2a; color: #e8ffe8; }
+    #banner-text { flex: 1; min-width: 120px; }
+    #join-webex {
+      padding: 6px 14px;
+      font-size: 14px;
+      cursor: pointer;
+      border: 1px solid #5a8;
+      border-radius: 6px;
+      background: #2a4a6a;
+      color: #e8f4ff;
+    }
+    #join-webex:hover { background: #335a80; }
+    .wrap {
+      display: flex;
+      flex-direction: row;
+      height: calc(100% - 52px);
+      gap: 2px;
+      box-sizing: border-box;
+    }
+    .cell {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .cell .cap {
+      position: absolute;
+      top: 6px;
+      left: 8px;
+      font-size: 11px;
+      color: #888;
+      z-index: 1;
+      pointer-events: none;
+    }
+    video {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+  </style>
+</head>
+<body>
+  <!-- Clip 1 mic: Democast uses a second hidden element + captureStream (media-manager.js); muxed MP4
+       is more reliable on a second <video> than <audio> for autoplay + capture in Chrome. -->
+  <video id="hv1" playsinline crossorigin="anonymous" style="display:none;width:0;height:0;"></video>
+  <div id="banner-row" class="">
+    <span id="banner-text">Loading…</span>
+    <button type="button" id="join-webex" hidden>Join Webex</button>
+  </div>
+  <div class="wrap">
+    <div class="cell"><span class="cap">Camera (1)</span><video id="v1" playsinline muted></video></div>
+    <div class="cell"><span class="cap">Share (2)</span><video id="v2" playsinline muted loop></video></div>
+  </div>
+  <script crossorigin src="https://cdn.jsdelivr.net/npm/webex@3.7.0/umd/webex.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
