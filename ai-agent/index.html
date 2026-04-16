@@ -180,6 +180,17 @@
             cursor: pointer;
         }
 
+        .action-button.is-cooldown {
+            pointer-events: none;
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .action-button.is-cooldown:hover .icon-circle {
+            transform: none;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
         .icon-surgery,
         .icon-triage,
         .icon-appt,
@@ -287,11 +298,23 @@
     }
   }
 
+  var APPOINTMENT_COOLDOWN_MS = 3000;
+
   function init() {
     var el = document.getElementById("appointment-dial");
     if (!el) return;
+    var cooldownTimer = null;
     el.addEventListener("click", function (e) {
       e.preventDefault();
+      if (el.classList.contains("is-cooldown")) return;
+      el.classList.add("is-cooldown");
+      el.setAttribute("aria-busy", "true");
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+      cooldownTimer = setTimeout(function () {
+        cooldownTimer = null;
+        el.classList.remove("is-cooldown");
+        el.removeAttribute("aria-busy");
+      }, APPOINTMENT_COOLDOWN_MS);
       void handleDial();
     });
   }
