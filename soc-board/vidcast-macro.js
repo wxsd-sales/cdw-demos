@@ -59,6 +59,10 @@ let selectedIndex = 0;
 let syncUITimer = null;
 /** URL we last opened; used to detect “our” WebView */
 let lastOpenedUrl = "";
+/** Location suffix when Controls was last opened (e.g. HomeScreen / ControlPanel); close uses same panel for Videos page. */
+let lastControlsLocationSuffix = "HomeScreen";
+/** Avoid re-entrant PageOpened → goToVideos loops. */
+let syncingVideosFromPanelOpen = false;
 
 /* ========== Bootstrap ========== */
 
@@ -93,9 +97,10 @@ async function init(webengineMode) {
 
   xapi.Event.UserInterface.Extensions.Widget.Action.on(processWidget);
 
+  xapi.Event.UserInterface.Extensions.Event.PageOpened.on(processPageOpen);
+
   if (config.closeContentWithPanel) {
     xapi.Event.UserInterface.Extensions.Event.PageClosed.on(processPageClose);
-    xapi.Event.UserInterface.Extensions.Event.PageOpened.on(processPageOpen);
   }
 
   xapi.Status.UserInterface.WebView.on(processWebViews);
@@ -326,7 +331,8 @@ async function processWidget({ WidgetId, Type, Value }) {
 
   if (command === "close" && Type === "clicked") {
     await closeWebview();
-    createPanels();
+    await createPanels();
+    await goToVideos();
     return;
   }
 
@@ -419,9 +425,23 @@ async function processPageClose(event) {
   }, 300);
 }
 
-function processPageOpen(event) {
+async function processPageOpen(event) {
   if (!event.PageId.startsWith(config.panelId)) return;
   panelOpen = true;
+
+  /* Persisted Controls page with no our WebView → show Videos (both panel instances). */
+  if (!event.PageId.endsWith("-controls")) return;
+  if (syncingVideosFromPanelOpen || openingWebview) return;
+
+  const playerOpen = await checkIfPlayerIsOpen();
+  if (playerOpen) return;
+
+  syncingVideosFromPanelOpen = true;
+  try {
+    await goToVideos();
+  } finally {
+    syncingVideosFromPanelOpen = false;
+  }
 }
 
 function syncUI() {
@@ -524,6 +544,14 @@ async function createPanels() {
   await createPanel("ControlPanel");
   clearTimeout(syncUITimer);
   syncUITimer = setTimeout(syncUI, 500);
+}
+
+/** Same location suffixes as createPanels — used so both panels stay on the same page (Videos vs Controls). */
+function vidcastPanelLocationSuffixes() {
+  return [
+    config.button.showInCall ? "HomeScreenAndCallControls" : "HomeScreen",
+    "ControlPanel",
+  ];
 }
 
 function escapeXml(s) {
@@ -725,10 +753,26 @@ async function anyControllers() {
   return touchPanels.length > 0;
 }
 
-function goToControls(locationSuffix) {
-  const panelKey = config.panelId + locationSuffix;
-  return xapi.Command.UserInterface.Extensions.Panel.Open({
-    PageId: panelKey + "-controls",
-    PanelId: panelKey,
-  });
+async function goToControls(locationSuffix) {
+  lastControlsLocationSuffix = locationSuffix;
+  const suffixes = vidcastPanelLocationSuffixes();
+  for (let i = 0; i < suffixes.length; i++) {
+    const panelKey = config.panelId + suffixes[i];
+    await xapi.Command.UserInterface.Extensions.Panel.Open({
+      PageId: panelKey + "-controls",
+      PanelId: panelKey,
+    });
+  }
+}
+
+/** Opens the Videos list page on every Vidcast panel instance (keeps Home vs Control Panel in sync). */
+async function goToVideos() {
+  const suffixes = vidcastPanelLocationSuffixes();
+  for (let i = 0; i < suffixes.length; i++) {
+    const panelKey = config.panelId + suffixes[i];
+    await xapi.Command.UserInterface.Extensions.Panel.Open({
+      PageId: panelKey + "-channels",
+      PanelId: panelKey,
+    });
+  }
 }
