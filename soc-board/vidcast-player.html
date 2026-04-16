@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vidcast playback</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    #msg {
+      color: #ccc;
+      font-family: system-ui, sans-serif;
+      padding: 1rem;
+      max-width: 40rem;
+    }
+  </style>
+</head>
+<body>
+  <video id="v" controls playsinline autoplay></video>
+  <p id="msg" hidden></p>
+  <script>
+(function () {
+  function showError(text) {
+    var v = document.getElementById("v");
+    if (v) v.removeAttribute("src");
+    var m = document.getElementById("msg");
+    if (m) {
+      m.textContent = text;
+      m.hidden = false;
+    }
+  }
+
+  /**
+   * Restrict which hosts may be loaded as &src= (defense-in-depth).
+   * Extend this list if Vidcast changes CDN hostnames.
+   */
+  function isAllowedVideoUrl(u) {
+    try {
+      var parsed = new URL(u);
+      if (parsed.protocol !== "https:") return false;
+      var h = parsed.hostname.toLowerCase();
+      if (h === "app.vidcast.io" || h.endsWith(".vidcast.io")) return true;
+      if (h.endsWith(".cloudfront.net")) return true;
+      if (h.endsWith(".amazonaws.com")) return true;
+      if (h.endsWith(".blob.core.windows.net")) return true;
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var raw = params.get("src");
+  if (!raw) {
+    showError("Missing src query parameter.");
+    return;
+  }
+  var src;
+  try {
+    src = decodeURIComponent(raw);
+  } catch (e) {
+    showError("Invalid src encoding.");
+    return;
+  }
+  if (!isAllowedVideoUrl(src)) {
+    showError("Video URL host is not allow-listed for this player page.");
+    return;
+  }
+  var el = document.getElementById("v");
+  if (!el) return;
+  el.src = src;
+})();
+  </script>
+</body>
+</html>

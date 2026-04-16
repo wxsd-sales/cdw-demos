@@ -1,11 +1,9 @@
 /********************************************************
  * Instant meeting + SIP log — RoomOS macro (standalone)
  *
- * One tap from the home screen: your macro tile opens this macro’s panel page.
- * As soon as that page opens, we start the Webex instant meeting and poll
- * xapi.Status.Call for CallbackNumber (see sipFromCallbackNumber).
- *
- * There is no second in-panel button — only a status line while work runs.
+ * One tap from the home screen (or control panel tile): Panel.Clicked runs the flow
+ * immediately — no extension page to open first (same pattern as wxsd-sales dial-button-macro).
+ * Webex instant meeting start, then poll xapi.Status.Call for CallbackNumber (sipFromCallbackNumber).
  *
  * Requires Webex / instant meeting on the codec.
  * CDW uses xapi.command('HttpClient Post', …) — ensure HttpClient is enabled and
@@ -25,8 +23,8 @@ const config = {
     icon: "Tv",
     showInCall: false,
   },
-  /** Ignore PageOpened for this long after macro load (avoids spurious run on enable). */
-  ignorePageOpenedMs: 2000,
+  /** Ignore Panel.Clicked for this long after macro load (avoids spurious run on enable). */
+  ignorePanelClickMs: 2000,
   /** Wait after InstantMeeting.Start before first Status.Call read (ms). */
   delayAfterStartMs: 3500,
   /** Poll interval until CallbackNumber is usable (ms). */
@@ -199,19 +197,19 @@ function escapeXml(s) {
     .replace(/"/g, "&quot;");
 }
 
-function processPageOpen(event) {
-  if (!event || !event.PageId) return;
-  if (!event.PageId.startsWith(config.panelId)) return;
+function processPanelClicked(event) {
+  if (!event || !event.PanelId) return;
+  if (!String(event.PanelId).startsWith(config.panelId)) return;
   var elapsed = Date.now() - macroLoadedAt;
-  if (elapsed < (config.ignorePageOpenedMs | 0)) {
+  if (elapsed < (config.ignorePanelClickMs | 0)) {
     log(
-      "PageOpened ignored (" +
+      "Panel.Clicked ignored (" +
         elapsed +
-        "ms after macro load; spurious open on enable?)"
+        "ms after macro load; spurious click on enable?)"
     );
     return;
   }
-  log("PageOpened — starting instant meeting (single tap, no inner button)");
+  log("Panel.Clicked — starting instant meeting (" + event.PanelId + ")");
   void run();
 }
 
@@ -233,16 +231,7 @@ async function savePanel(location) {
   var orderNum = await panelOrder(fullId);
   if (orderNum !== -1) orderXml = "<Order>" + orderNum + "</Order>";
 
-  /* No Button widget — one tap is opening this page; PageOpened runs the flow. */
-  var body =
-    "<Page><Name>Instant SIP</Name>" +
-    "<Row><Widget><WidgetId>" +
-    fullId +
-    "-info</WidgetId><Name>Starting instant meeting…</Name><Type>Text</Type><Options>size=4;fontSize=normal;align=center</Options></Widget></Row>" +
-    "<PageId>" +
-    fullId +
-    "-main</PageId><Options>hideRowNames=1</Options></Page>";
-
+  /* Panel tile only (no Page): Panel.Clicked starts run — see dial-button-macro Panel.Save. */
   var panelXml =
     "<Extensions><Panel><Location>" +
     location +
@@ -255,7 +244,6 @@ async function savePanel(location) {
     "</Name>" +
     orderXml +
     "<ActivityType>Custom</ActivityType>" +
-    body +
     "</Panel></Extensions>";
 
   return xapi.Command.UserInterface.Extensions.Panel.Save(
@@ -275,13 +263,13 @@ async function createPanels() {
 async function init() {
   macroLoadedAt = Date.now();
   await createPanels();
-  xapi.Event.UserInterface.Extensions.Event.PageOpened.on(processPageOpen);
+  xapi.Event.UserInterface.Extensions.Panel.Clicked.on(processPanelClicked);
   /* When the active call disconnects, tell CDW to stop Puppeteer. If this event
      is not available on your firmware, replace with the xAPI your CE docs use for “call ended”. */
   xapi.Event.CallDisconnect.on(function () {
     void postCdwCommand({ command: "end" });
   });
-  log("macro ready — open this macro’s page from the home screen (one tap)");
+  log("macro ready — tap the Tumor Board tile (home or control panel) to start");
 }
 
 init().catch(function (e) {
