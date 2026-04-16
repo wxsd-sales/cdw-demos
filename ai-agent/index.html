@@ -132,6 +132,20 @@
             align-items: center;
             text-decoration: none; /* Remove underline from links */
             width: 160px; /* Consistent width */
+            /* Desk Pro / WebView: default touch tap highlight + link focus ring read as a dark box */
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+            color: inherit;
+        }
+
+        .action-button:focus {
+            outline: none;
+        }
+
+        .action-button:focus-visible .icon-circle {
+            box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.4);
         }
 
         .icon-circle {
@@ -151,7 +165,7 @@
         .icon-text {
             margin-top: 15px;
             color: rgba(255, 255, 255, 0.9);
-            font-size: 13px;
+            font-size: 18px;
             line-height: 1.4;
             display: -webkit-box;
             -webkit-line-clamp: 2; /* Limit to 2 lines of text */
