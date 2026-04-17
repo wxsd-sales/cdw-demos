@@ -1,5 +1,7 @@
 .DS_STORE
 tests/
+old/
+notes
 *.env
 tumor-board/*.env
 soc-board/iptv-macro.js

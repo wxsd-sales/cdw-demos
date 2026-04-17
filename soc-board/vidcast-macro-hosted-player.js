@@ -19,7 +19,7 @@ import xapi from "xapi";
 const config = {
   /** Main panel tile on Home / Control Panel */
   button: {
-    name: "SOC Board (hosted)",
+    name: "SOC Board",
     color: "#6F739E",
     icon: "Tv",
     showInCall: true,
@@ -49,6 +49,12 @@ const config = {
   autoDeleteWebCache: true,
   /** Close WebView when panel closes and no separate controller (see IPTV) */
   closeContentWithPanel: false,
+  /**
+   * After opening a video (list pick or channel spinner), switch both panel instances
+   * to Controls then dismiss the panel so only the WebView stays visible. Reopening
+   * the tile still lands on Controls while the player is open (see processPageOpen).
+   */
+  hidePanelAfterStartingVideo: true,
   /**
    * When true, logs when WebView status URLs do not match (after data: payload normalization).
    */
@@ -370,6 +376,9 @@ async function switchToVideo(index) {
   await openWebview(item);
   await createPanels();
   processChannelChange();
+  if (config.hidePanelAfterStartingVideo) {
+    await hideVidcastPanels();
+  }
 }
 
 /* ========== Widget events ========== */
@@ -395,6 +404,9 @@ async function processWidget({ WidgetId, Type, Value }) {
         ? idPrefix.slice(config.panelId.length)
         : "HomeScreen";
     await goToControls(locationSuffix);
+    if (config.hidePanelAfterStartingVideo) {
+      await hideVidcastPanels();
+    }
     return;
   }
 
@@ -832,6 +844,20 @@ async function goToControls(locationSuffix) {
       PanelId: panelKey,
     });
   }
+}
+
+/**
+ * Dismiss the extensions side sheet (tile / panel definition stays).
+ * RoomOS expects xCommand UserInterface Extensions Panel Close with no
+ * parameters — see Cisco sample "Close WebApp/WebApp Close.js".
+ */
+async function hideVidcastPanels() {
+  try {
+    await xapi.Command.UserInterface.Extensions.Panel.Close();
+  } catch (e) {
+    console.warn("Panel.Close:", e.message);
+  }
+  panelOpen = false;
 }
 
 /** Opens the Videos list page on every Vidcast panel instance (keeps Home vs Control Panel in sync). */

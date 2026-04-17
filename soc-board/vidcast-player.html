@@ -18,10 +18,41 @@
       padding: 1rem;
       max-width: 40rem;
     }
+    /* Room display: finger-sized tap target above the video plane */
+    #close-experiment {
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top, 0px));
+      right: max(16px, env(safe-area-inset-right, 0px));
+      z-index: 9999;
+      box-sizing: border-box;
+      width: clamp(56px, 12vmin, 96px);
+      height: clamp(56px, 12vmin, 96px);
+      border-radius: 50%;
+      border: 3px solid #fff;
+      background: #c62828;
+      color: #fff;
+      font-size: clamp(28px, 7vmin, 44px);
+      font-weight: 700;
+      line-height: 1;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      touch-action: manipulation;
+    }
+    #close-experiment:active {
+      filter: brightness(0.92);
+      transform: scale(0.96);
+    }
   </style>
 </head>
 <body>
   <video id="v" controls playsinline autoplay></video>
+  <button type="button" id="close-experiment" aria-label="Close">×</button>
   <p id="msg" hidden></p>
   <script>
 (function () {
@@ -75,6 +106,13 @@
   if (!el) return;
   el.src = src;
 })();
+
+  var closeBtn = document.getElementById("close-experiment");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", function () {
+      window.close();
+    });
+  }
   </script>
 </body>
 </html>
