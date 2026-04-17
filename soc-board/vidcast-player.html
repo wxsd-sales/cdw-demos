@@ -93,29 +93,29 @@
     #video-mute-toggle {
       flex-shrink: 0;
       box-sizing: border-box;
-      width: clamp(45px, 9.6vmin, 77px);
-      height: clamp(45px, 9.6vmin, 77px);
+      width: 40px;
+      height: 40px;
       padding: 0;
       border-radius: 50%;
-      border: 2px solid #fff;
-      background: #616161;
-      color: #fff;
+      border: none;
+      background: #4a4a4a;
+      color: #e8e8e8;
       cursor: pointer;
       touch-action: manipulation;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
       -webkit-tap-highlight-color: transparent;
     }
     #video-mute-toggle:active {
-      filter: brightness(0.92);
+      filter: brightness(0.9);
       transform: scale(0.96);
     }
     #video-mute-toggle svg {
-      width: 52%;
-      height: 52%;
+      width: 60%;
+      height: 60%;
       display: block;
       position: absolute;
       top: 50%;
@@ -144,8 +144,8 @@
       border-radius: 4px;
       background: linear-gradient(
         to right,
-        #6e6e6e 0%,
-        #6e6e6e var(--vol-pct),
+        #8e8e8e 0%,
+        #8e8e8e var(--vol-pct),
         #f0f0f0 var(--vol-pct),
         #f0f0f0 100%
       );
@@ -170,7 +170,7 @@
     #video-volume::-moz-range-progress {
       height: 8px;
       border-radius: 4px 0 0 4px;
-      background: #6e6e6e;
+      background: #8e8e8e;
     }
     #video-volume::-moz-range-thumb {
       width: 18px;
@@ -343,9 +343,55 @@
     false
   );
 
+  var WEBEX_API = "https://webexapis.com/v1";
+
+  function getUrlCredentials() {
+    var p = new URLSearchParams(window.location.search);
+    return {
+      deviceId: (p.get("deviceId") || "").trim(),
+      token: (p.get("token") || p.get("webexToken") || "").trim(),
+    };
+  }
+
+  async function clearWebViewsViaWebex() {
+    var cred = getUrlCredentials();
+    if (!cred.deviceId || !cred.token) {
+      console.warn("Close: missing deviceId or token in page URL");
+      return false;
+    }
+    var res = await fetch(WEBEX_API + "/xapi/command/UserInterface.WebView.Clear", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + cred.token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        deviceId: cred.deviceId,
+        arguments: {
+          Target: "OSD",
+        },
+      }),
+    });
+    if (!res.ok) {
+      var errText = await res.text().catch(function () {
+        return "";
+      });
+      console.warn("WebView.Clear xAPI failed:", res.status, errText);
+      return false;
+    }
+    return true;
+  }
+
   if (closeBtn) {
     closeBtn.addEventListener("click", function () {
-      window.close();
+      var cred = getUrlCredentials();
+      if (cred.deviceId && cred.token) {
+        clearWebViewsViaWebex().catch(function (e) {
+          console.warn("Close WebView request error:", e);
+        });
+      } else {
+        window.close();
+      }
     });
   }
 

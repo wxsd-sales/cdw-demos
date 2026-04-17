@@ -3,6 +3,11 @@
  *
  * Home screen: playlist → opens vidcast-player.html?src=… in WebView, then
  * dismisses the extensions sheet. All playback UI is in the HTML page.
+ *
+ * Optional config.deviceId + config.botToken are appended as query params so
+ * the page can call Webex xAPI (same pattern as video-kiosk-app handleDial):
+ * POST …/xapi/command/UserInterface.WebView.Clear with Bearer token (needs
+ * spark:xapi_commands scope).
  ********************************************************/
 
 import xapi from "xapi";
@@ -15,6 +20,10 @@ const config = {
   },
   panelId: "vidcast_hp",
   playlistId: "",
+  /** Webex bot / integration access token (sent as `token=` on player URL). */
+  botToken: "",
+  /** Webex workspace device id (sent as `deviceId=` on player URL). */
+  deviceId: "",
   playlistPageSize: 50,
   /** Full HTTPS URL to vidcast-player.html (no query string). */
   hostedPlayerPageUrl: "https://wxsd-sales.github.io/cdw-demos/soc-board/vidcast-player.html",
@@ -159,7 +168,12 @@ function buildPlayerUrl(item) {
   }
   const mp4 = item.mp4 || "";
   if (!mp4) return config.vidcastShareBase + item.shareId;
-  return base + "?src=" + encodeURIComponent(mp4);
+  let url = base + "?src=" + encodeURIComponent(mp4);
+  const dev = (config.deviceId || "").trim();
+  const tok = (config.botToken || "").trim();
+  if (dev) url += "&deviceId=" + encodeURIComponent(dev);
+  if (tok) url += "&token=" + encodeURIComponent(tok);
+  return url;
 }
 
 function urlMatchesOurPlayer(url) {
