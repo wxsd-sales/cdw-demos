@@ -18,22 +18,28 @@
       padding: 1rem;
       max-width: 40rem;
     }
-    /* Room display: finger-sized tap target above the video plane */
-    #close-experiment {
+    .settings-anchor {
       position: fixed;
       top: max(16px, env(safe-area-inset-top, 0px));
       right: max(16px, env(safe-area-inset-right, 0px));
       z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+    .top-buttons {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: clamp(10px, 2vmin, 16px);
+    }
+    .orb-btn {
       box-sizing: border-box;
       width: clamp(56px, 12vmin, 96px);
       height: clamp(56px, 12vmin, 96px);
       border-radius: 50%;
       border: 3px solid #fff;
-      background: #c62828;
-      color: #fff;
-      font-size: clamp(28px, 7vmin, 44px);
-      font-weight: 700;
-      line-height: 1;
       padding: 0;
       margin: 0;
       cursor: pointer;
@@ -43,16 +49,95 @@
       -webkit-tap-highlight-color: transparent;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
       touch-action: manipulation;
+      flex-shrink: 0;
     }
-    #close-experiment:active {
+    .orb-btn:active {
       filter: brightness(0.92);
       transform: scale(0.96);
+    }
+    #settings-toggle {
+      background: #616161;
+      color: #fff;
+    }
+    #settings-toggle svg {
+      width: 52%;
+      height: 52%;
+      display: block;
+    }
+    #close-experiment {
+      background: #c62828;
+      color: #fff;
+      font-size: clamp(28px, 7vmin, 44px);
+      font-weight: 700;
+      line-height: 1;
+    }
+    .settings-popover {
+      min-width: min(280px, 85vw);
+      max-width: 90vw;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: rgba(28, 28, 28, 0.96);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .settings-popover[hidden] {
+      display: none !important;
+    }
+    .settings-popover .row {
+      margin-bottom: 12px;
+    }
+    .settings-popover .row:last-child {
+      margin-bottom: 0;
+    }
+    #video-mute-toggle {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      background: #424242;
+      color: #fff;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    #video-mute-toggle:active {
+      background: #383838;
+    }
+    .vol-label {
+      display: block;
+      color: #bbb;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    #video-volume {
+      width: 100%;
+      height: 36px;
+      touch-action: manipulation;
     }
   </style>
 </head>
 <body>
   <video id="v" controls playsinline autoplay></video>
-  <button type="button" id="close-experiment" aria-label="Close">×</button>
+  <div id="settings-anchor" class="settings-anchor">
+    <div class="top-buttons">
+      <button type="button" class="orb-btn" id="settings-toggle" aria-label="Playback settings" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">
+          <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.31-.09.63-.09.94s.02.63.06.93l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+        </svg>
+      </button>
+      <button type="button" class="orb-btn" id="close-experiment" aria-label="Close">×</button>
+    </div>
+    <div id="settings-popover" class="settings-popover" hidden role="dialog" aria-label="Video audio">
+      <div class="row">
+        <button type="button" id="video-mute-toggle">Mute</button>
+      </div>
+      <div class="row">
+        <label class="vol-label" for="video-volume">Volume</label>
+        <input type="range" id="video-volume" min="0" max="1" step="0.01" value="1" />
+      </div>
+    </div>
+  </div>
   <p id="msg" hidden></p>
   <script>
 (function () {
@@ -66,10 +151,6 @@
     }
   }
 
-  /**
-   * Restrict which hosts may be loaded as &src= (defense-in-depth).
-   * Extend this list if Vidcast changes CDN hostnames.
-   */
   function isAllowedVideoUrl(u) {
     try {
       var parsed = new URL(u);
@@ -107,12 +188,80 @@
   el.src = src;
 })();
 
+(function () {
+  var video = document.getElementById("v");
+  var settingsToggle = document.getElementById("settings-toggle");
+  var popover = document.getElementById("settings-popover");
+  var muteBtn = document.getElementById("video-mute-toggle");
+  var volSlider = document.getElementById("video-volume");
+  var anchor = document.getElementById("settings-anchor");
   var closeBtn = document.getElementById("close-experiment");
+
+  function isPopoverOpen() {
+    return popover && !popover.hidden;
+  }
+
+  function setPopoverOpen(open) {
+    if (!popover || !settingsToggle) return;
+    popover.hidden = !open;
+    settingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) syncPopoverFromVideo();
+  }
+
+  function syncPopoverFromVideo() {
+    if (!video || !muteBtn || !volSlider) return;
+    muteBtn.textContent = video.muted ? "Unmute" : "Mute";
+    volSlider.value = String(video.volume);
+  }
+
+  if (video) {
+    video.addEventListener("volumechange", function () {
+      if (popover && !popover.hidden) syncPopoverFromVideo();
+    });
+  }
+
+  if (video && volSlider) {
+    volSlider.addEventListener("input", function () {
+      var x = parseFloat(volSlider.value);
+      if (!isNaN(x)) {
+        video.volume = x;
+        if (x > 0) video.muted = false;
+      }
+      if (muteBtn) muteBtn.textContent = video.muted ? "Unmute" : "Mute";
+    });
+  }
+
+  if (video && muteBtn) {
+    muteBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      video.muted = !video.muted;
+      muteBtn.textContent = video.muted ? "Unmute" : "Mute";
+    });
+  }
+
+  if (settingsToggle && popover) {
+    settingsToggle.addEventListener("click", function (e) {
+      e.stopPropagation();
+      setPopoverOpen(!isPopoverOpen());
+    });
+  }
+
+  document.addEventListener(
+    "click",
+    function (ev) {
+      if (!popover || popover.hidden) return;
+      if (anchor && anchor.contains(ev.target)) return;
+      setPopoverOpen(false);
+    },
+    false
+  );
+
   if (closeBtn) {
     closeBtn.addEventListener("click", function () {
       window.close();
     });
   }
+})();
   </script>
 </body>
 </html>
