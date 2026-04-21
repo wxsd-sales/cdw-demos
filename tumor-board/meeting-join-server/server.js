@@ -231,7 +231,6 @@ async function fetchFirstTwoMp4FromPlaylist(playlistId) {
     page += 1;
   }
 
-  out.sort((a, b) => a.name.localeCompare(b.name));
   if (out.length < 2) {
     throw new Error("Need at least 2 videos with MP4 in playlist");
   }

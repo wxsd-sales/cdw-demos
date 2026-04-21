@@ -8,6 +8,9 @@
  * the page can call Webex xAPI (same pattern as video-kiosk-app handleDial):
  * POST …/xapi/command/UserInterface.WebView.Clear with Bearer token (needs
  * spark:xapi_commands scope).
+ *
+ * Playlist is fetched on each Panel.Clicked (tile tap), not only at startup,
+ * so Vidcast signed MP4 URLs stay fresh.
  ********************************************************/
 
 import xapi from "xapi";
@@ -31,16 +34,23 @@ const config = {
   vidcastShareBase: "https://app.vidcast.io/share/",
   autoDeleteWebCache: true,
   hidePanelAfterStartingVideo: true,
+  /** Ignore Panel.Clicked for this long after macro load (avoids spurious run on enable). */
+  ignorePanelClickMs: 2000,
 };
 
 const PANEL_LOCATION = "HomeScreen";
 
 let openingWebview = false;
 let videos = [];
-let loading = true;
+/** True while HttpClient playlist fetch is in progress (Panel.Clicked path). */
+let loading = false;
+/** After first successful fetch; until then UI prompts to tap the tile. */
+let playlistFetchedOnce = false;
 let lastOpenedUrl = "";
 /** WebView id when our player last became Visible (for ghost cleanup). */
 let lastWebViewId = null;
+let macroLoadedAt = 0;
+let playlistRefreshInFlight = false;
 
 xapi.Config.WebEngine.Mode.get()
   .then((mode) => init(mode))
@@ -63,16 +73,37 @@ async function init(webengineMode) {
   xapi.Config.WebEngine.Features.AllowDeviceCertificate.set("True");
   xapi.Config.HttpClient.Mode.set("On");
 
+  macroLoadedAt = Date.now();
   await createPanels();
 
-  videos = await fetchAllPlaylistVideos(config.playlistId);
-  console.log("Vidcast videos loaded:", videos.length);
-  loading = false;
-
-  await createPanels();
-
+  xapi.Event.UserInterface.Extensions.Panel.Clicked.on(processPanelClicked);
   xapi.Event.UserInterface.Extensions.Widget.Action.on(processWidget);
   xapi.Status.UserInterface.WebView.on(processWebViews);
+}
+
+async function processPanelClicked(event) {
+  if (!event || !event.PanelId || !String(event.PanelId).startsWith(config.panelId)) return;
+  const elapsed = Date.now() - macroLoadedAt;
+  if (elapsed < (config.ignorePanelClickMs ?? 0)) {
+    return;
+  }
+  if (playlistRefreshInFlight) return;
+  playlistRefreshInFlight = true;
+  try {
+    loading = true;
+    await createPanels();
+    videos = await fetchAllPlaylistVideos(config.playlistId);
+    playlistFetchedOnce = true;
+    console.log("Vidcast videos loaded:", videos.length);
+  } catch (e) {
+    console.warn("Playlist refresh failed:", e && e.message ? e.message : e);
+    videos = [];
+    playlistFetchedOnce = true;
+  } finally {
+    loading = false;
+    playlistRefreshInFlight = false;
+    await createPanels();
+  }
 }
 
 async function fetchAllPlaylistVideos(playlistId) {
@@ -122,8 +153,7 @@ async function fetchAllPlaylistVideos(playlistId) {
   } catch (e) {
     console.warn("fetchAllPlaylistVideos:", e.message);
   }
-
-  out.sort((a, b) => a.name.localeCompare(b.name));
+  /* Keep Vidcast API order as returned — do not sort or reorder here. */
   return out;
 }
 
@@ -187,7 +217,7 @@ function urlMatchesOurPlayer(url) {
 async function openWebview(item) {
   const url = buildPlayerUrl(item);
   if (!url) {
-    console.warn("No playback URL for item", item?.name);
+    console.warn("No playback URL for item", item && item.name ? item.name : "");
     return;
   }
 
@@ -231,6 +261,7 @@ async function processWidget({ WidgetId, Type }) {
   if (command === "selection" && Type === "clicked") {
     const idx = parseInt(option, 10);
     if (Number.isNaN(idx)) return;
+    if (idx < 0 || idx >= videos.length) return;
     await openWebview(videos[idx]);
     await createPanels();
     if (config.hidePanelAfterStartingVideo) {
@@ -297,6 +328,22 @@ async function createPanels() {
           "loading-text",
           "Text",
           "Loading Vidcast playlist…",
+          "size=3;fontSize=normal;align=center"
+        )
+      ) +
+      "<PageId>" +
+      panelId +
+      location +
+      "-channels</PageId>" +
+      "<Options>hideRowNames=1</Options></Page>";
+  } else if (!playlistFetchedOnce) {
+    pageXml =
+      "<Page><Name>Videos</Name>" +
+      row(
+        widget(
+          "hint-tap",
+          "Text",
+          "Tap the SOC Board tile to load the latest playlist.",
           "size=3;fontSize=normal;align=center"
         )
       ) +

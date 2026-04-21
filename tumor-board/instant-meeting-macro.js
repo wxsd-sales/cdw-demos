@@ -39,7 +39,7 @@ const config = {
   /** HttpClient Post `Header` array entries (RoomOS expects "Name: value" strings). */
   cdwHttpHeaders: ["Content-Type: application/json"],
   /** Shown on device OSD (UserInterface Message Alert) after CDW start and participant add. */
-  initializingAlertText: "Initializing. Please wait...",
+  initializingAlertText: "Initializing demo. Please wait...",
   /** Alert `Duration` in seconds (see xCommand UserInterface Message Alert Display). */
   initializingAlertDuration: 15,
 };

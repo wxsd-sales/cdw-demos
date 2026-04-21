@@ -1,6 +1,7 @@
 .DS_STORE
 tests/
 old/
+prod_macros/
 notes
 *.env
 tumor-board/*.env
