@@ -19,6 +19,7 @@ const config = {
   mode: "Fullscreen",
   target: "OSD",
   title: "Instructions",
+  numberToWatch: ""
 };
 
 let overlayOpen = false;
@@ -35,7 +36,15 @@ function processCallCount(value) {
   const n = Number(value);
   if (Number.isNaN(n) || n < 0) return;
   if (n > 0) {
-    showInstructionsOverlay();
+    xapi.Status.Call.get().then((call) => {
+      call = JSON.parse(call);
+      console.log(call);
+      if(call && call.Direction == "Outgoing" && (call.CallbackNumber.indexOf(config.numberToWatch) >= 0 || call.DisplayName.indexOf(config.numberToWatch) >= 0) ){
+        showInstructionsOverlay();
+      } else {
+        hideInstructionsOverlay();
+      }
+    })
   } else {
     hideInstructionsOverlay();
   }

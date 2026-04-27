@@ -24,13 +24,14 @@ spec:
         # Fargate: requests define task size. Chromium + Puppeteer need more than default 0.25 vCPU/0.5Gi
         # or the process starves; kubelet HTTP liveness then times out and restarts (not reproducible on
         # local Docker with host resources). Readiness-only + ALB is enough; /alive remains for manual checks.
+        # 3Gi: small headroom for simulator video decode / browser compositing (was 2Gi).
         resources:
           requests:
-            cpu: "1"
-            memory: "2Gi"
+            cpu: "2"
+            memory: "4Gi"
           limits:
-            cpu: "1"
-            memory: "2Gi"
+            cpu: "2"
+            memory: "4Gi"
         readinessProbe:
           httpGet:
             path: /ready

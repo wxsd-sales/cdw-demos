@@ -234,7 +234,7 @@
                 <div class="icon-text">Patient Triage</div>
             </a> -->
 
-            <a href="#" class="action-button" id="appointment-dial" aria-label="Appointment Management — dial SIP target">
+            <a href="call.html" class="action-button" id="appointment-open-call" aria-label="Appointment Management — open call screen">
                 <div class="icon-circle icon-appt">📅</div>
                 <div class="icon-text">Appointment Management</div>
             </a>
@@ -251,7 +251,7 @@
     </footer>
 
     <!--
-      Dial (GitHub Pages–safe relative page; query params only):
+      Kiosk opens call.html with the same query string so dial params flow through.
         token=…       Bearer for Webex REST (alias: webexToken=… per video-kiosk-app)
         deviceId=…    Workspace device id for xapi/command/Dial
         number=…      SIP URI or number (encode @ as %40 in URLs)
@@ -259,64 +259,13 @@
     -->
     <script>
 (function () {
-  var WEBEX_API_URL = "https://webexapis.com/v1";
-  var urlParams = new URLSearchParams(window.location.search);
-  var webexToken = urlParams.get("webexToken") || urlParams.get("token");
-  var deviceId = urlParams.get("deviceId");
-  var dialNumber = urlParams.get("number");
-
-  async function handleDial() {
-    if (!webexToken || !deviceId || !dialNumber) {
-      console.error(
-        "Missing token (or webexToken), deviceId, or number URL parameters"
-      );
-      return;
-    }
-    try {
-      var res = await fetch(WEBEX_API_URL + "/xapi/command/Dial", {
-        method: "POST",
-        headers: {
-          Authorization: "Bearer " + webexToken,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          deviceId: deviceId,
-          arguments: {
-            Number: dialNumber,
-            Protocol: "Sip",
-          },
-        }),
-      });
-      if (!res.ok) {
-        var errBody = await res.text();
-        console.error("Dial HTTP " + res.status, errBody);
-        return;
-      }
-      console.log("Dialing " + dialNumber + "…");
-    } catch (err) {
-      console.error("Error dialing:", err);
-    }
-  }
-
-  var APPOINTMENT_COOLDOWN_MS = 3000;
-
   function init() {
-    var el = document.getElementById("appointment-dial");
+    var el = document.getElementById("appointment-open-call");
     if (!el) return;
-    var cooldownTimer = null;
-    el.addEventListener("click", function (e) {
-      e.preventDefault();
-      if (el.classList.contains("is-cooldown")) return;
-      el.classList.add("is-cooldown");
-      el.setAttribute("aria-busy", "true");
-      if (cooldownTimer) clearTimeout(cooldownTimer);
-      cooldownTimer = setTimeout(function () {
-        cooldownTimer = null;
-        el.classList.remove("is-cooldown");
-        el.removeAttribute("aria-busy");
-      }, APPOINTMENT_COOLDOWN_MS);
-      void handleDial();
-    });
+    var q = window.location.search;
+    if (q) {
+      el.href = "call.html" + q;
+    }
   }
 
   if (document.readyState === "loading") {

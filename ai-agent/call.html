@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call — Webex AI Agent</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: #0a0e14;
+            background-image: url("instructions.png");
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Subtle vignette so the call control reads on busy artwork */
+        body::after {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(
+                ellipse 70% 60% at 50% 50%,
+                rgba(0, 0, 0, 0.15) 0%,
+                rgba(0, 0, 0, 0.45) 100%
+            );
+        }
+
+        .call-wrap {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .call-button {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: inherit;
+            border: none;
+            background: none;
+            padding: 0;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .call-button:focus {
+            outline: none;
+        }
+
+        .call-button:focus-visible .call-circle {
+            box-shadow:
+                0 0 0 3px rgba(255, 255, 255, 0.5),
+                0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        /* Webex-style primary call control: green disc, soft depth */
+        .call-circle {
+            width: 112px;
+            height: 112px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(165deg, #2fe6a2 0%, #05b07a 45%, #048a5f 100%);
+            box-shadow:
+                0 4px 14px rgba(5, 176, 122, 0.45),
+                0 12px 28px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .call-button:hover .call-circle {
+            transform: scale(1.06);
+            box-shadow:
+                0 6px 18px rgba(5, 176, 122, 0.55),
+                0 14px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.4);
+        }
+
+        .call-button:active .call-circle {
+            transform: scale(0.98);
+        }
+
+        .call-button.is-cooldown {
+            pointer-events: none;
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .call-button.is-cooldown:hover .call-circle {
+            transform: none;
+        }
+
+        .call-circle svg {
+            width: 44px;
+            height: 44px;
+            display: block;
+            filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+        }
+
+        .call-label {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+            letter-spacing: 0.02em;
+        }
+    </style>
+</head>
+<body>
+    <div class="call-wrap">
+        <button type="button" class="call-button" id="call-dial" aria-label="Place call">
+            <span class="call-circle" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <path
+                        d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"
+                        fill="#ffffff"/>
+                </svg>
+            </span>
+            <span class="call-label">Call</span>
+        </button>
+    </div>
+
+    <!-- Same query contract as index.html: token|webexToken, deviceId, number -->
+    <script>
+(function () {
+  var WEBEX_API_URL = "https://webexapis.com/v1";
+  var urlParams = new URLSearchParams(window.location.search);
+  var webexToken = urlParams.get("webexToken") || urlParams.get("token");
+  var deviceId = urlParams.get("deviceId");
+  var dialNumber = urlParams.get("number");
+
+  async function handleDial() {
+    if (!webexToken || !deviceId || !dialNumber) {
+      console.error(
+        "Missing token (or webexToken), deviceId, or number URL parameters"
+      );
+      return;
+    }
+    try {
+      var res = await fetch(WEBEX_API_URL + "/xapi/command/Dial", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + webexToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          deviceId: deviceId,
+          arguments: {
+            Number: dialNumber,
+            Protocol: "Sip",
+          },
+        }),
+      });
+      if (!res.ok) {
+        var errBody = await res.text();
+        console.error("Dial HTTP " + res.status, errBody);
+        return;
+      }
+      console.log("Dialing " + dialNumber + "…");
+    } catch (err) {
+      console.error("Error dialing:", err);
+    }
+  }
+
+  var CALL_COOLDOWN_MS = 3000;
+
+  function init() {
+    var el = document.getElementById("call-dial");
+    if (!el) return;
+    var cooldownTimer = null;
+    el.addEventListener("click", function () {
+      if (el.classList.contains("is-cooldown")) return;
+      el.classList.add("is-cooldown");
+      el.setAttribute("aria-busy", "true");
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+      cooldownTimer = setTimeout(function () {
+        cooldownTimer = null;
+        el.classList.remove("is-cooldown");
+        el.removeAttribute("aria-busy");
+      }, CALL_COOLDOWN_MS);
+      void handleDial();
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+    </script>
+</body>
+</html>
