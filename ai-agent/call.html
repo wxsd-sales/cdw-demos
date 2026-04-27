@@ -14,6 +14,7 @@
 
         body {
             min-height: 100vh;
+            min-height: 100dvh;
             background-color: #0a0e14;
             background-image: url("instructions.png");
             background-size: cover;
@@ -21,8 +22,7 @@
             background-repeat: no-repeat;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -39,13 +39,73 @@
             );
         }
 
+        .back-button {
+            position: fixed;
+            top: max(20px, env(safe-area-inset-top, 0px));
+            left: max(20px, env(safe-area-inset-left, 0px));
+            z-index: 2;
+            text-decoration: none;
+            color: inherit;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        .back-button:focus {
+            outline: none;
+        }
+
+        .back-button:focus-visible .back-circle {
+            box-shadow:
+                0 0 0 3px rgba(255, 255, 255, 0.45),
+                0 4px 14px rgba(0, 0, 0, 0.35);
+        }
+
+        .back-circle {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(165deg, #9ca3af 0%, #6b7280 50%, #4b5563 100%);
+            box-shadow:
+                0 3px 10px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .back-button:hover .back-circle {
+            transform: scale(1.05);
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+
+        .back-button:active .back-circle {
+            transform: scale(0.96);
+        }
+
+        .back-circle svg {
+            width: 26px;
+            height: 26px;
+            display: block;
+            margin-left: -2px;
+        }
+
         .call-wrap {
             position: relative;
             z-index: 1;
+            margin-top: auto;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: flex-end;
             gap: 20px;
+            padding-left: max(24px, env(safe-area-inset-left, 0px));
+            padding-right: max(24px, env(safe-area-inset-right, 0px));
+            padding-bottom: max(40px, calc(24px + env(safe-area-inset-bottom, 0px)));
+            box-sizing: border-box;
         }
 
         .call-button {
@@ -129,6 +189,13 @@
     </style>
 </head>
 <body>
+    <a href="index.html" class="back-button" id="back-to-index" aria-label="Back to home">
+        <span class="back-circle" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z" fill="#ffffff"/>
+            </svg>
+        </span>
+    </a>
     <div class="call-wrap">
         <button type="button" class="call-button" id="call-dial" aria-label="Place call">
             <span class="call-circle" aria-hidden="true">
@@ -187,6 +254,12 @@
   var CALL_COOLDOWN_MS = 3000;
 
   function init() {
+    var back = document.getElementById("back-to-index");
+    if (back) {
+      var q = window.location.search;
+      back.href = "index.html" + (q || "");
+    }
+
     var el = document.getElementById("call-dial");
     if (!el) return;
     var cooldownTimer = null;
