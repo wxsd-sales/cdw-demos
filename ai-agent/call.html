@@ -93,6 +93,59 @@
             margin-left: -2px;
         }
 
+        .close-button {
+            position: fixed;
+            top: max(20px, env(safe-area-inset-top, 0px));
+            right: max(20px, env(safe-area-inset-right, 0px));
+            z-index: 2;
+            text-decoration: none;
+            color: inherit;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+
+        .close-button:focus {
+            outline: none;
+        }
+
+        .close-button:focus-visible .close-circle {
+            box-shadow:
+                0 0 0 3px rgba(255, 255, 255, 0.45),
+                0 4px 14px rgba(0, 0, 0, 0.35);
+        }
+
+        .close-circle {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(165deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
+            box-shadow:
+                0 3px 10px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .close-button:hover .close-circle {
+            transform: scale(1.05);
+            box-shadow:
+                0 4px 14px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+
+        .close-button:active .close-circle {
+            transform: scale(0.96);
+        }
+
+        .close-circle svg {
+            width: 24px;
+            height: 24px;
+            display: block;
+        }
+
         .call-wrap {
             position: relative;
             z-index: 1;
@@ -196,6 +249,13 @@
             </svg>
         </span>
     </a>
+    <a href="#" class="close-button" id="close-webview" aria-label="Close">
+        <span class="close-circle" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M18.3 7.11L16.89 5.7L12 10.59L7.11 5.7L5.7 7.11L10.59 12L5.7 16.89L7.11 18.3L12 13.41L16.89 18.3L18.3 16.89L13.41 12L18.3 7.11Z" fill="#ffffff"/>
+            </svg>
+        </span>
+    </a>
     <div class="call-wrap">
         <button type="button" class="call-button" id="call-dial" aria-label="Place call">
             <span class="call-circle" aria-hidden="true">
@@ -210,6 +270,7 @@
     </div>
 
     <!-- Same query contract as index.html: token|webexToken, deviceId, number -->
+    <script src="webview-controls.js"></script>
     <script>
 (function () {
   var WEBEX_API_URL = "https://webexapis.com/v1";
@@ -254,10 +315,12 @@
   var CALL_COOLDOWN_MS = 3000;
 
   function init() {
-    var back = document.getElementById("back-to-index");
-    if (back) {
-      var q = window.location.search;
-      back.href = "index.html" + (q || "");
+    if (window.AIAgentWebViewControls) {
+      window.AIAgentWebViewControls.bindCloseButton("close-webview");
+      window.AIAgentWebViewControls.applyCurrentQueryToLink(
+        "back-to-index",
+        "index.html"
+      );
     }
 
     var el = document.getElementById("call-dial");
